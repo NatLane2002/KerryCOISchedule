@@ -1,7 +1,13 @@
-const ENC_URL = "data/schedule.enc.json";
 const SESSION_KEY = "kerry-coi-unlocked-v1";
 
 const $ = (sel) => document.querySelector(sel);
+
+/** Resolve assets under /KerryCOISchedule/ even when the URL has no trailing slash. */
+function assetUrl(rel) {
+  const base = new URL(location.href);
+  if (!base.pathname.endsWith("/")) base.pathname += "/";
+  return new URL(rel, base).href;
+}
 
 function b64ToBytes(b64) {
   const bin = atob(b64);
@@ -29,10 +35,16 @@ async function deriveKey(password, salt, iterations) {
 }
 
 async function decryptPayload(payload, password) {
+  if (!payload?.data || !payload?.salt || !payload?.iv) {
+    throw new Error("Schedule file is incomplete.");
+  }
+  if (!crypto?.subtle) {
+    throw new Error("This browser cannot decrypt (needs HTTPS).");
+  }
   const salt = b64ToBytes(payload.salt);
   const iv = b64ToBytes(payload.iv);
   const data = b64ToBytes(payload.data);
-  const key = await deriveKey(password, salt, payload.iter);
+  const key = await deriveKey(password, salt, Number(payload.iter));
   const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
   return JSON.parse(new TextDecoder().decode(plain));
 }
@@ -92,14 +104,21 @@ let encPayload = null;
 let activeTab = "route";
 
 async function loadEnc() {
-  const res = await fetch(ENC_URL, { cache: "no-store" });
-  if (!res.ok) throw new Error("Could not load encrypted schedule.");
-  encPayload = await res.json();
+  const url = assetUrl("data/schedule.enc.json");
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Could not load schedule (${res.status}). Tried ${url}`);
+  }
+  const payload = await res.json();
+  if (!payload?.data) throw new Error("Schedule file is not encrypted JSON.");
+  encPayload = payload;
 }
 
 async function tryUnlock(password) {
-  schedule = await decryptPayload(encPayload, password);
-  sessionStorage.setItem(SESSION_KEY, password);
+  if (!encPayload) throw new Error("Schedule still loading — wait a second.");
+  const cleaned = password.trim();
+  schedule = await decryptPayload(encPayload, cleaned);
+  sessionStorage.setItem(SESSION_KEY, cleaned);
   showApp();
 }
 
@@ -332,6 +351,12 @@ function syncPanels() {
   });
 }
 
+function setLockError(message) {
+  const err = $("#lock-error");
+  err.textContent = message;
+  err.hidden = false;
+}
+
 function wireUi() {
   $("#unlock-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -342,12 +367,21 @@ function wireUi() {
     btn.disabled = true;
     btn.textContent = "Decrypting…";
     try {
+      if (!encPayload) await loadEnc();
       await tryUnlock(password);
-    } catch {
-      err.hidden = false;
+    } catch (ex) {
+      console.error(ex);
       sessionStorage.removeItem(SESSION_KEY);
+      const msg = String(ex?.message || ex);
+      if (/still loading/i.test(msg)) {
+        setLockError(msg);
+      } else if (/incomplete|not encrypted|Could not load|cannot decrypt/i.test(msg)) {
+        setLockError(msg);
+      } else {
+        setLockError("Wrong password. Try again.");
+      }
     } finally {
-      btn.disabled = false;
+      btn.disabled = !encPayload;
       btn.textContent = "Unlock schedule";
     }
   });
@@ -367,8 +401,22 @@ function wireUi() {
 }
 
 async function boot() {
+  const btn = $("#unlock-btn");
+  btn.disabled = true;
+  btn.textContent = "Loading…";
   wireUi();
-  await loadEnc();
+  try {
+    await loadEnc();
+    btn.disabled = false;
+    btn.textContent = "Unlock schedule";
+  } catch (err) {
+    console.error(err);
+    setLockError(String(err?.message || "Could not load schedule file."));
+    btn.textContent = "Retry unlock";
+    btn.disabled = false;
+    return;
+  }
+
   const saved = sessionStorage.getItem(SESSION_KEY);
   if (saved) {
     try {
@@ -381,7 +429,5 @@ async function boot() {
 
 boot().catch((err) => {
   console.error(err);
-  const errEl = $("#lock-error");
-  errEl.textContent = "Could not load schedule file. Check the deploy.";
-  errEl.hidden = false;
+  setLockError("Could not start the schedule app.");
 });
