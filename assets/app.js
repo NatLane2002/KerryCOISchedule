@@ -1,67 +1,22 @@
-const SESSION_KEY = "kerry-coi-unlocked-v1";
+const SESSION_KEY = "kerry-coi-unlocked-v2";
 
 const $ = (sel) => document.querySelector(sel);
 
-/** Resolve assets under /KerryCOISchedule/ even when the URL has no trailing slash. */
-function assetUrl(rel) {
-  const base = new URL(location.href);
-  if (!base.pathname.endsWith("/")) base.pathname += "/";
-  return new URL(rel, base).href;
-}
-
-function b64ToBytes(b64) {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-async function deriveKey(password, salt, iterations) {
-  const enc = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveKey"]
-  );
-  return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    baseKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["decrypt"]
-  );
-}
-
-async function decryptPayload(payload, password) {
-  if (!payload || !payload.data || !payload.salt || !payload.iv) {
-    throw new Error("Schedule file is incomplete.");
-  }
-  if (!window.crypto || !window.crypto.subtle) {
-    throw new Error("This browser cannot decrypt (needs HTTPS).");
-  }
-  const salt = b64ToBytes(payload.salt);
-  const iv = b64ToBytes(payload.iv);
-  const data = b64ToBytes(payload.data);
-  const key = await deriveKey(password, salt, Number(payload.iter));
-  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
-  return JSON.parse(new TextDecoder().decode(plain));
-}
-
 function phoneDigits(raw) {
   if (!raw) return [];
-  return [...raw.matchAll(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g)].map((m) =>
-    m[0].replace(/\D/g, "")
-  );
+  var matches = String(raw).match(/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g);
+  if (!matches) return [];
+  return matches.map(function (m) {
+    return m.replace(/\D/g, "");
+  });
 }
 
 function telHref(digits) {
-  return `tel:+1${digits}`;
+  return "tel:+1" + digits;
 }
 
 function mapsHref(address) {
-  return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+  return "https://maps.google.com/?q=" + encodeURIComponent(address);
 }
 
 function escapeHtml(str) {
@@ -73,56 +28,78 @@ function escapeHtml(str) {
 }
 
 function highlightImportant(text) {
-  const escaped = escapeHtml(text);
-  return escaped.replace(
+  return escapeHtml(text).replace(
     /\b(BRING A SPARE HEAT KIT|CONFIRM|DO NOT|EXPIRED|ALL after-photos|ALL install photos)\b/gi,
     "<strong>$1</strong>"
   );
 }
 
-function callButtons(label, phoneField, variant = "") {
-  const nums = phoneDigits(phoneField || "");
+function callButtons(label, phoneField, variant) {
+  variant = variant || "";
+  var nums = phoneDigits(phoneField || "");
   if (!nums.length) {
-    return `<span class="call call--muted" aria-disabled="true">${escapeHtml(label)} · n/a</span>`;
+    return '<span class="call call--muted" aria-disabled="true">' + escapeHtml(label) + " · n/a</span>";
   }
   return nums
-    .map((d, i) => {
-      const extra = nums.length > 1 ? ` ${i + 1}` : "";
-      return `<a class="call ${variant}" href="${telHref(d)}">${escapeHtml(label)}${extra}</a>`;
+    .map(function (d, i) {
+      var extra = nums.length > 1 ? " " + (i + 1) : "";
+      return (
+        '<a class="call ' +
+        variant +
+        '" href="' +
+        telHref(d) +
+        '">' +
+        escapeHtml(label) +
+        extra +
+        "</a>"
+      );
     })
     .join("");
 }
 
 function matchesQuery(haystack, q) {
   if (!q) return true;
-  return haystack.toLowerCase().includes(q.toLowerCase());
+  return haystack.toLowerCase().indexOf(q.toLowerCase()) !== -1;
 }
 
-let schedule = null;
-let encPayload = null;
-let activeTab = "route";
-
-async function loadEnc() {
-  if (typeof window !== "undefined" && window.KERRY_COI_ENC?.data) {
-    encPayload = window.KERRY_COI_ENC;
-    return;
+function decodeSchedule() {
+  if (!window.KERRY_COI_B64) {
+    throw new Error("Schedule data missing. Hard-refresh the page.");
   }
-  const url = assetUrl("data/schedule.enc.json");
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error("Could not load schedule (" + res.status + "). Tried " + url);
+  var bin = atob(window.KERRY_COI_B64);
+  // decode UTF-8 safely
+  try {
+    return JSON.parse(decodeURIComponent(escape(bin)));
+  } catch (e1) {
+    return JSON.parse(bin);
   }
-  const payload = await res.json();
-  if (!payload || !payload.data) throw new Error("Schedule file is not encrypted JSON.");
-  encPayload = payload;
 }
 
-async function tryUnlock(password) {
-  if (!encPayload) throw new Error("Schedule still loading — wait a second.");
-  const cleaned = password.trim();
-  schedule = await decryptPayload(encPayload, cleaned);
-  sessionStorage.setItem(SESSION_KEY, cleaned);
-  showApp();
+var schedule = null;
+var activeTab = "route";
+var dataReady = false;
+
+function loadData() {
+  if (!window.KERRY_COI_B64 || !window.KERRY_COI_PASS) {
+    throw new Error("Schedule scripts did not load. Hard-refresh.");
+  }
+  dataReady = true;
+}
+
+function tryUnlock(password) {
+  if (!dataReady) loadData();
+  var cleaned = String(password || "").trim();
+  if (cleaned !== window.KERRY_COI_PASS) {
+    throw new Error("BAD_PASSWORD");
+  }
+  schedule = decodeSchedule();
+  sessionStorage.setItem(SESSION_KEY, "1");
+  try {
+    showApp();
+  } catch (renderErr) {
+    console.error(renderErr);
+    throw new Error("Unlocked but display failed: " + ((renderErr && renderErr.message) || renderErr));
+  }
 }
 
 function lockApp() {
@@ -332,7 +309,7 @@ function renderAll() {
     contacts: renderContacts(q),
   };
 
-  const visible = counts[activeTab] ?? 0;
+  const visible = counts[activeTab] || 0;
   $("#empty").hidden = visible > 0;
   syncPanels();
 }
@@ -368,7 +345,7 @@ function wireUi() {
     });
   }
 
-  $("#unlock-form").addEventListener("submit", async function (e) {
+  $("#unlock-form").addEventListener("submit", function (e) {
     e.preventDefault();
     e.stopPropagation();
     const btn = $("#unlock-btn");
@@ -376,23 +353,19 @@ function wireUi() {
     const password = $("#password").value;
     err.hidden = true;
     btn.disabled = true;
-    btn.textContent = "Decrypting...";
+    btn.textContent = "Unlocking...";
     try {
-      if (!encPayload) await loadEnc();
-      await tryUnlock(password);
+      tryUnlock(password);
     } catch (ex) {
       console.error(ex);
       sessionStorage.removeItem(SESSION_KEY);
       const msg = String((ex && ex.message) || ex);
-      if (/still loading/i.test(msg)) {
-        setLockError(msg);
-      } else if (/incomplete|not encrypted|Could not load|cannot decrypt/i.test(msg)) {
-        setLockError(msg);
+      if (msg === "BAD_PASSWORD") {
+        setLockError("Wrong password. Use Show password and type KerryField26");
       } else {
-        setLockError("Wrong password. Check Show password and retry.");
+        setLockError(msg);
       }
-    } finally {
-      btn.disabled = !encPayload;
+      btn.disabled = false;
       btn.textContent = "Unlock schedule";
     }
   });
@@ -411,34 +384,29 @@ function wireUi() {
   });
 }
 
-async function boot() {
+function boot() {
   const btn = $("#unlock-btn");
-  btn.disabled = true;
-  btn.textContent = "Loading…";
   wireUi();
   try {
-    await loadEnc();
+    loadData();
     btn.disabled = false;
     btn.textContent = "Unlock schedule";
   } catch (err) {
     console.error(err);
-    setLockError(String(err?.message || "Could not load schedule file."));
+    setLockError(String((err && err.message) || "Could not load schedule file."));
     btn.textContent = "Retry unlock";
     btn.disabled = false;
     return;
   }
 
-  const saved = sessionStorage.getItem(SESSION_KEY);
-  if (saved) {
+  if (sessionStorage.getItem(SESSION_KEY) === "1") {
     try {
-      await tryUnlock(saved);
-    } catch {
+      schedule = decodeSchedule();
+      showApp();
+    } catch (e) {
       sessionStorage.removeItem(SESSION_KEY);
     }
   }
 }
 
-boot().catch((err) => {
-  console.error(err);
-  setLockError("Could not start the schedule app.");
-});
+boot();
