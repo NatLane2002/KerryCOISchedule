@@ -1,0 +1,45 @@
+# Kerry COI Schedule — GitHub Pages
+# Serves the static site from the repository root on the default branch.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Stage publish folder
+        run: |
+          mkdir -p _site/assets _site/data
+          cp index.html .nojekyll _site/
+          cp assets/* _site/assets/
+          cp data/schedule.enc.json _site/data/
+          # Never publish plaintext schedule even if present locally
+          rm -f _site/data/schedule.json
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

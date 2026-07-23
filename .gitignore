@@ -1,0 +1,12 @@
+# Plaintext schedule — keep out of public deploys / public commits if possible
+data/schedule.json
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local
+.env
+.env.*
