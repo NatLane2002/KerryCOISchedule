@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="robots" content="noindex, nofollow" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="theme-color" content="#0a1628" />
-    <title>COI Schedule — Locked</title>
+    <title>Kerry's COI Schedule</title>
+    <base href="/KerryCOISchedule/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,56 +19,11 @@
   <body>
     <div class="atmosphere" aria-hidden="true"></div>
 
-    <!-- LOCK SCREEN -->
-    <section id="lock-screen" class="lock" aria-labelledby="lock-title">
-      <div class="lock__panel">
-        <p class="lock__brand">Exploits · Take Charge</p>
-        <h1 id="lock-title" class="lock__title">Kerry’s COI Schedule</h1>
-        <p class="lock__sub">
-          Field route, unblock list, and contacts. Enter the access password to unlock.
-        </p>
-        <form id="unlock-form" class="lock__form" autocomplete="off" method="post" action="#" onsubmit="return false;">
-          <label class="sr-only" for="password">Access password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            class="lock__input"
-            placeholder="Access password"
-            required
-            autofocus
-            enterkeyhint="go"
-            autocomplete="off"
-            autocapitalize="off"
-            autocorrect="off"
-            spellcheck="false"
-          />
-          <label class="lock__show">
-            <input type="checkbox" id="show-password" />
-            Show password
-          </label>
-          <button type="submit" class="lock__btn" id="unlock-btn">
-            Unlock schedule
-          </button>
-          <p id="lock-error" class="lock__error" role="alert" hidden>
-            Wrong password. Try again.
-          </p>
-        </form>
-        <p class="lock__hint">Data is encrypted at rest. Session unlock lasts until you lock or close the tab.</p>
-      </div>
-    </section>
-
-    <!-- APP -->
-    <div id="app" class="app" hidden>
+    <div id="app" class="app">
       <header class="topbar">
         <div class="topbar__text">
-          <p class="topbar__eyebrow" id="meta-line"></p>
-          <h1 class="topbar__title">Kerry’s COI Schedule</h1>
-        </div>
-        <div class="topbar__actions">
-          <button type="button" class="btn btn--ghost" id="lock-btn" title="Lock">
-            Lock
-          </button>
+          <p class="topbar__eyebrow" id="meta-line">Loading...</p>
+          <h1 class="topbar__title">Kerry's COI Schedule</h1>
         </div>
       </header>
 
@@ -78,7 +34,7 @@
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
             <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <input id="search" type="search" placeholder="Search customer, town, phone…" />
+          <input id="search" type="search" placeholder="Search customer, town, phone..." />
         </label>
         <nav class="tabs" role="tablist" aria-label="Schedule sections">
           <button type="button" class="tab is-active" role="tab" aria-selected="true" data-tab="route">Field route</button>
@@ -100,11 +56,11 @@
 
       <footer class="footer">
         <span id="footer-meta"></span>
-        <span>Prepared for Kerry · Exploits</span>
+        <span>Prepared for Kerry · Exploits · Private link — do not share widely</span>
       </footer>
     </div>
 
-    <script src="assets/schedule.enc.js"></script>
+    <script src="assets/schedule-data.js"></script>
     <script src="assets/app.js"></script>
   </body>
 </html>

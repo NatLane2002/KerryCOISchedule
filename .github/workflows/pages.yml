@@ -31,9 +31,10 @@ jobs:
           mkdir -p _site/assets _site/data
           cp index.html .nojekyll _site/
           cp assets/* _site/assets/
-          cp data/schedule.enc.json _site/data/
           # Never publish plaintext schedule even if present locally
-          rm -f _site/data/schedule.json
+          rm -f _site/data/schedule.json _site/assets/schedule.enc.js
+          # Keep only the open schedule data + app
+          ls -la _site/assets/
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
