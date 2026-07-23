@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Encrypts data/schedule.json → data/schedule.enc.json
+ * Encrypts data/schedule.json → data/schedule.enc.json + assets/schedule.enc.js
  * Usage: node scripts/encrypt-data.mjs "your-password"
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ if (!password) {
   process.exit(1);
 }
 
-const ITERATIONS = 210_000;
+const ITERATIONS = 100_000;
 
 function b64(buf) {
   return Buffer.from(buf).toString("base64");
@@ -60,9 +60,9 @@ const payload = {
   data: b64(ciphertext),
 };
 
+writeFileSync(join(root, "data/schedule.enc.json"), JSON.stringify(payload) + "\n");
 writeFileSync(
-  join(root, "data/schedule.enc.json"),
-  JSON.stringify(payload) + "\n"
+  join(root, "assets/schedule.enc.js"),
+  "window.KERRY_COI_ENC = " + JSON.stringify(payload) + ";\n"
 );
-console.log("Encrypted → data/schedule.enc.json");
-console.log("Password:", password);
+console.log("Encrypted → data/schedule.enc.json + assets/schedule.enc.js");

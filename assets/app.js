@@ -35,17 +35,17 @@ async function deriveKey(password, salt, iterations) {
 }
 
 async function decryptPayload(payload, password) {
-  if (!payload?.data || !payload?.salt || !payload?.iv) {
+  if (!payload || !payload.data || !payload.salt || !payload.iv) {
     throw new Error("Schedule file is incomplete.");
   }
-  if (!crypto?.subtle) {
+  if (!window.crypto || !window.crypto.subtle) {
     throw new Error("This browser cannot decrypt (needs HTTPS).");
   }
   const salt = b64ToBytes(payload.salt);
   const iv = b64ToBytes(payload.iv);
   const data = b64ToBytes(payload.data);
   const key = await deriveKey(password, salt, Number(payload.iter));
-  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
   return JSON.parse(new TextDecoder().decode(plain));
 }
 
@@ -66,19 +66,18 @@ function mapsHref(address) {
 
 function escapeHtml(str) {
   return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .split("&").join("&amp;")
+    .split("<").join("&lt;")
+    .split(">").join("&gt;")
+    .split('"').join("&quot;");
 }
 
 function highlightImportant(text) {
   const escaped = escapeHtml(text);
-  return escaped
-    .replace(
-      /\b(BRING A SPARE HEAT KIT|CONFIRM|DO NOT|EXPIRED|ALL after-photos|ALL install photos)\b/gi,
-      "<strong>$1</strong>"
-    );
+  return escaped.replace(
+    /\b(BRING A SPARE HEAT KIT|CONFIRM|DO NOT|EXPIRED|ALL after-photos|ALL install photos)\b/gi,
+    "<strong>$1</strong>"
+  );
 }
 
 function callButtons(label, phoneField, variant = "") {
@@ -104,13 +103,17 @@ let encPayload = null;
 let activeTab = "route";
 
 async function loadEnc() {
+  if (typeof window !== "undefined" && window.KERRY_COI_ENC?.data) {
+    encPayload = window.KERRY_COI_ENC;
+    return;
+  }
   const url = assetUrl("data/schedule.enc.json");
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
-    throw new Error(`Could not load schedule (${res.status}). Tried ${url}`);
+    throw new Error("Could not load schedule (" + res.status + "). Tried " + url);
   }
   const payload = await res.json();
-  if (!payload?.data) throw new Error("Schedule file is not encrypted JSON.");
+  if (!payload || !payload.data) throw new Error("Schedule file is not encrypted JSON.");
   encPayload = payload;
 }
 
@@ -358,27 +361,35 @@ function setLockError(message) {
 }
 
 function wireUi() {
-  $("#unlock-form").addEventListener("submit", async (e) => {
+  const show = document.getElementById("show-password");
+  if (show) {
+    show.addEventListener("change", function () {
+      $("#password").type = show.checked ? "text" : "password";
+    });
+  }
+
+  $("#unlock-form").addEventListener("submit", async function (e) {
     e.preventDefault();
+    e.stopPropagation();
     const btn = $("#unlock-btn");
     const err = $("#lock-error");
     const password = $("#password").value;
     err.hidden = true;
     btn.disabled = true;
-    btn.textContent = "Decrypting…";
+    btn.textContent = "Decrypting...";
     try {
       if (!encPayload) await loadEnc();
       await tryUnlock(password);
     } catch (ex) {
       console.error(ex);
       sessionStorage.removeItem(SESSION_KEY);
-      const msg = String(ex?.message || ex);
+      const msg = String((ex && ex.message) || ex);
       if (/still loading/i.test(msg)) {
         setLockError(msg);
       } else if (/incomplete|not encrypted|Could not load|cannot decrypt/i.test(msg)) {
         setLockError(msg);
       } else {
-        setLockError("Wrong password. Try again.");
+        setLockError("Wrong password. Check Show password and retry.");
       }
     } finally {
       btn.disabled = !encPayload;
@@ -388,12 +399,12 @@ function wireUi() {
 
   $("#lock-btn").addEventListener("click", lockApp);
 
-  $("#search").addEventListener("input", () => {
+  $("#search").addEventListener("input", function () {
     renderAll();
   });
 
-  document.querySelectorAll(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(function (btn) {
+    btn.addEventListener("click", function () {
       activeTab = btn.dataset.tab;
       renderAll();
     });

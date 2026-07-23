@@ -26,7 +26,7 @@
         <p class="lock__sub">
           Field route, unblock list, and contacts. Enter the access password to unlock.
         </p>
-        <form id="unlock-form" class="lock__form" autocomplete="off">
+        <form id="unlock-form" class="lock__form" autocomplete="off" method="post" action="#" onsubmit="return false;">
           <label class="sr-only" for="password">Access password</label>
           <input
             id="password"
@@ -42,6 +42,10 @@
             autocorrect="off"
             spellcheck="false"
           />
+          <label class="lock__show">
+            <input type="checkbox" id="show-password" />
+            Show password
+          </label>
           <button type="submit" class="lock__btn" id="unlock-btn">
             Unlock schedule
           </button>
@@ -100,6 +104,7 @@
       </footer>
     </div>
 
-    <script type="module" src="assets/app.js"></script>
+    <script src="assets/schedule.enc.js"></script>
+    <script src="assets/app.js"></script>
   </body>
 </html>
